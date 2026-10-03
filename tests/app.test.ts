@@ -358,7 +358,7 @@ test("end-to-end generation excludes watched items, shares concurrent work and p
   expect(store.byId(profile.id)!.error).toContain("503");
 });
 
-test("hourly limit blocks forced and automatic retries, including after failure and engine restart", async () => {
+test("manual refresh bypasses the hour while addon retries remain limited after failures and restarts", async () => {
   const store = setup();
   const { profile } = store.create();
   store.update(profile.id, { settings, trakt: tokens });
@@ -376,48 +376,62 @@ test("hourly limit blocks forced and automatic retries, including after failure 
     .query("UPDATE profiles SET attempted_at=? WHERE id=?")
     .run(Date.now() - 59 * 60_000, profile.id);
   await engine.start(profile.id);
-  await engine.start(profile.id, true);
   expect(calls).toBe(0);
-  store.db
-    .query("UPDATE profiles SET attempted_at=? WHERE id=?")
-    .run(Date.now() - 61 * 60_000, profile.id);
   await engine.start(profile.id, true);
   expect(calls).toBe(1);
+  await engine.start(profile.id, true);
+  expect(calls).toBe(2);
   expect(store.byId(profile.id)!.error).toContain("503");
   const restarted = new Recommendations(
     store,
     new Trakt(store, "client", base, request),
     request,
   );
-  await restarted.start(profile.id, true);
-  expect(calls).toBe(1);
+  await restarted.start(profile.id);
+  expect(calls).toBe(2);
+  store.db
+    .query("UPDATE profiles SET attempted_at=? WHERE id=?")
+    .run(Date.now() - 61 * 60_000, profile.id);
+  await restarted.start(profile.id);
+  expect(calls).toBe(3);
 });
 
-test("refresh API and catalog respect the same hour after settings changes", async () => {
+test("settings and in-flight manual refresh preserve cached addon responses without duplicate work", async () => {
   const store = setup();
   const { profile, session } = store.create();
   store.update(profile.id, { settings, trakt: tokens });
-  const attemptedAt = Date.now() - 30 * 60_000;
+  const metas = [
+    {
+      id: "tt0000002",
+      type: "movie" as const,
+      name: "Cached film",
+      poster: "https://example.com/poster.jpg",
+    },
+  ];
+  store.setCache(profile.id, metas);
   store.db
-    .query("UPDATE profiles SET attempted_at=? WHERE id=?")
-    .run(attemptedAt, profile.id);
+    .query("UPDATE profiles SET attempted_at=?,cached_at=1 WHERE id=?")
+    .run(Date.now(), profile.id);
   let calls = 0;
+  let finish!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    finish = resolve;
+  });
   const app = createApp(
     store,
     { baseUrl: base, clientId: "test" },
     async () => {
       calls++;
+      await gate;
       return new Response(null, { status: 503 });
     },
   );
   const cookie = `__Host-taste=${session}`;
-  const status = await (
-    await app.fetch(req("/api/status", "GET", undefined, cookie))
-  ).json();
-  expect(status.retryAt).toBe(attemptedAt + 60 * 60_000);
-  expect(
-    (await app.fetch(req("/api/refresh", "POST", undefined, cookie))).status,
-  ).toBe(429);
+  const addon = store.secrets(store.byId(profile.id)!).addon;
+  const catalog = () =>
+    app.fetch(req(`/a/${addon}/catalog/movie/taste-movies.json`));
+  expect((await catalog()).status).toBe(200);
+  expect(calls).toBe(0);
   expect(
     (
       await app.fetch(
@@ -430,16 +444,20 @@ test("refresh API and catalog respect the same hour after settings changes", asy
       )
     ).status,
   ).toBe(200);
+  expect(store.cached(store.byId(profile.id)!)).toEqual(metas);
   expect(
     (await app.fetch(req("/api/refresh", "POST", undefined, cookie))).status,
-  ).toBe(429);
-  const addon = store.secrets(store.byId(profile.id)!).addon;
-  const response = await app.fetch(
-    req(`/a/${addon}/catalog/movie/taste-movies.json`),
-  );
-  expect(response.status).toBe(200);
-  expect(calls).toBe(0);
-  expect(store.byId(profile.id)!.attempted_at).toBe(attemptedAt);
+  ).toBe(202);
+  const work = app.recommendations.start(profile.id, true);
+  expect(
+    (await app.fetch(req("/api/refresh", "POST", undefined, cookie))).status,
+  ).toBe(202);
+  expect(await (await catalog()).json()).toMatchObject({ metas });
+  finish();
+  await work;
+  expect(calls).toBe(1);
+  expect(await (await catalog()).json()).toMatchObject({ metas });
+  expect(calls).toBe(1);
 });
 
 test("preferences are optional, bounded, saved per profile and sent to the chosen AI", async () => {

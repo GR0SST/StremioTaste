@@ -139,7 +139,7 @@ export class Recommendations {
       throw new AppError("Connect Trakt and save your settings.", 409);
     if (!force && profile.cached_at > Date.now() - TTL)
       return Promise.resolve();
-    if (profile.attempted_at > Date.now() - GENERATION_COOLDOWN_MS)
+    if (!force && profile.attempted_at > Date.now() - GENERATION_COOLDOWN_MS)
       return Promise.resolve();
     this.store.attempt(id);
     const work = this.generate(id, settings)

@@ -110,8 +110,7 @@ async function load(fill = false) {
   $("delete-profile").hidden = !data.connected;
   $("delete-profile").disabled = data.running || busy;
   $("results").hidden = !data.configured;
-  $("refresh").disabled =
-    data.running || busy || (data.retryAt && data.retryAt > Date.now());
+  $("refresh").disabled = data.running || busy;
   $("refresh").textContent = data.running ? "Generating…" : "Refresh";
   if (data.manifestUrl) {
     $("manifest-url").value = data.manifestUrl;
@@ -269,7 +268,3 @@ if (auth) {
   history.replaceState(null, "", `${base}/configure`);
 }
 load(true).catch((error) => status(error.message, true));
-setInterval(() => {
-  if (current && !current.running && !busy && current.retryAt < Date.now())
-    $("refresh").disabled = false;
-}, 1000);

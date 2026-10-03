@@ -209,16 +209,10 @@ export function createApp(store: Store, config: AppConfig, request?: Http) {
         input.apiKey = previous.settings.apiKey;
       const settings = validateSettings(input);
       store.update(p.id, { settings });
-      store.clearCache(p.id);
       return json({ ok: true });
     }
     if (req.method === "POST" && path === "/api/refresh") {
       const p = requireProfile();
-      if (
-        !recommendations.running(p.id) &&
-        p.attempted_at > Date.now() - GENERATION_COOLDOWN_MS
-      )
-        throw new AppError("Wait one hour between refreshes.", 429);
       void recommendations.start(p.id, true);
       return json({ ok: true }, 202);
     }
