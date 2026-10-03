@@ -16,7 +16,6 @@ const settings: Settings = {
   apiKey: "test-private-key",
   model: "test-model",
   catalogs: ["taste-movies", "taste-series", "taste-mixed"],
-  language: "ru",
 };
 const tokens: Tokens = {
   access_token: "private-access",
@@ -223,9 +222,9 @@ test("ranking drops invented IDs and duplicates; routes keys to the selected pro
               message: {
                 content: JSON.stringify({
                   recommendations: [
-                    { key: "movie:999", reason: "invented" },
-                    { key: "movie:2", reason: "Fits your taste" },
-                    { key: "movie:2", reason: "duplicate" },
+                    { key: "movie:999" },
+                    { key: "movie:2" },
+                    { key: "movie:2" },
                   ],
                 }),
               },
@@ -321,9 +320,7 @@ test("end-to-end generation excludes watched items, shares concurrent work and p
             finish_reason: "stop",
             message: {
               content: JSON.stringify({
-                recommendations: [
-                  { key: "movie:2", reason: "Personal recommendation" },
-                ],
+                recommendations: [{ key: "movie:2" }],
               }),
             },
           },
@@ -503,14 +500,41 @@ test("preferences are optional, bounded, saved per profile and sent to the chose
             finish_reason: "stop",
             message: {
               content: JSON.stringify({
-                recommendations: [
-                  { key: "movie:2", reason: "Matches preferences" },
-                ],
+                recommendations: [{ key: "movie:2" }],
               }),
             },
           },
         ],
       });
     },
+  );
+});
+
+test("legacy cached explanations are omitted without losing picks or resetting cooldown", () => {
+  const store = setup();
+  const { profile } = store.create();
+  const legacy = [
+    {
+      id: "tt0000002",
+      type: "movie" as const,
+      name: "Film",
+      poster: "https://example.com/p.jpg",
+      description: "Old AI explanation",
+    },
+  ];
+  store.setCache(profile.id, legacy);
+  store.attempt(profile.id);
+  const row = store.byId(profile.id)!;
+  expect(store.cached(row)).toEqual([
+    {
+      id: "tt0000002",
+      type: "movie",
+      name: "Film",
+      poster: "https://example.com/p.jpg",
+    },
+  ]);
+  expect(store.byId(profile.id)!.attempted_at).toBe(row.attempted_at);
+  expect(validateSettings({ ...settings, language: "ru" })).not.toHaveProperty(
+    "language",
   );
 });

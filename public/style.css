@@ -672,3 +672,7 @@ textarea {
   color: var(--muted);
   font-weight: 400;
 }
+
+.field-row {
+  grid-template-columns: 1fr;
+}

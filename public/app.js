@@ -87,9 +87,7 @@ function renderPosters(metas) {
     img.referrerPolicy = "no-referrer";
     const title = document.createElement("h3");
     title.textContent = meta.name;
-    const reason = document.createElement("p");
-    reason.textContent = meta.description?.split("\n\n")[0] || "";
-    article.append(img, title, reason);
+    article.append(img, title);
     $("posters").append(article);
   }
 }
@@ -121,7 +119,6 @@ async function load(fill = false) {
       `input[name="provider"][value="${data.settings.provider}"]`,
     ).checked = true;
     populateModels(data.settings.model);
-    $("language").value = data.settings.language;
     $("preferences").value = data.settings.preferences || "";
     document.querySelectorAll('input[name="catalogs"]').forEach((input) => {
       input.checked = data.settings.catalogs.includes(input.value);
@@ -207,7 +204,6 @@ $("settings").addEventListener("submit", async (event) => {
     provider: provider(),
     apiKey: $("api-key").value.trim(),
     model: selectedModel(),
-    language: $("language").value,
     preferences: $("preferences").value.trim(),
     catalogs: [
       ...document.querySelectorAll('input[name="catalogs"]:checked'),

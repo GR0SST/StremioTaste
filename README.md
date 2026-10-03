@@ -11,7 +11,7 @@ Personal movie and series recommendations based on your Trakt history, ratings a
 3. Enable Movies, Series, Everything, or any combination of these catalogs. Add optional Preferences (up to 1,000 characters) to guide the AI selection.
 4. Generate a selection and install the personal manifest in Stremio.
 
-Trakt supplies real candidates from titles related to your favorites/recent watches, plus a discovery pool. The model ranks these candidates and explains its choices. Watched titles and low-rated titles are excluded before ranking. Model-invented IDs and duplicates are rejected. Cinemeta supplies posters and canonical IMDb metadata; the addon provides catalogs, not streams.
+Trakt supplies real candidates from titles related to your favorites/recent watches, plus a discovery pool. The model ranks these candidates and returns only their IDs. Watched titles and low-rated titles are excluded before ranking. Model-invented IDs and duplicates are rejected. Cinemeta supplies posters and canonical IMDb metadata; the addon provides catalogs, not streams.
 
 The Everything catalog uses a custom `Taste` catalog type and individual `movie`/`series` cards. **Mixed catalog navigation needs verification on each Stremio client.** Disable it if your client has trouble; the two standard catalogs remain available.
 
@@ -77,7 +77,7 @@ Use one application process/replica: in-process generation and refresh-token loc
 - The setup page shows generation progress and a preview. First catalog requests may return an empty list while initial generation runs.
 - On upstream failure, the previous successful catalog stays available and the setup page shows an error.
 - Trakt lists are paginated; more than 200 pages per list produces an explicit limit error instead of silently incomplete filtering.
-- Recommendations are drawn from a bounded pool, not the entire Trakt database. Cinemeta names/descriptions may be English even when AI explanations use another language.
+- Recommendations are drawn from a bounded pool, not the entire Trakt database. Titles come from Cinemeta.
 
 ## Verification
 

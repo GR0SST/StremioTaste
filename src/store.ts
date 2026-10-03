@@ -102,7 +102,17 @@ export class Store {
       .run(this.encrypt(metas), Date.now(), id);
   }
   cached(profile: Profile): Meta[] {
-    return profile.cache ? this.decrypt<Meta[]>(profile.cache) : [];
+    return profile.cache
+      ? this.decrypt<Meta[]>(profile.cache).map(
+          ({ id, type, name, poster, releaseInfo }) => ({
+            id,
+            type,
+            name,
+            poster,
+            ...(releaseInfo !== undefined ? { releaseInfo } : {}),
+          }),
+        )
+      : [];
   }
   clearCache(id: string) {
     this.db

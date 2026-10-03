@@ -10,7 +10,6 @@ export interface Settings {
   model: string;
   apiKey: string;
   catalogs: CatalogId[];
-  language: "ru" | "uk" | "en";
   preferences?: string;
 }
 export interface Tokens {
@@ -28,7 +27,6 @@ export interface Meta {
   type: MediaType;
   name: string;
   poster: string;
-  description?: string;
   releaseInfo?: string;
 }
 export interface TasteItem {
@@ -88,8 +86,6 @@ export function validateSettings(value: unknown): Settings {
     s.catalogs.some((id) => !catalogs.some((c) => c.id === id))
   )
     throw new AppError("Select at least one catalog.");
-  if (!["ru", "uk", "en"].includes(String(s.language)))
-    throw new AppError("Select a language.");
   if (
     s.preferences !== undefined &&
     (typeof s.preferences !== "string" || s.preferences.length > 1000)
@@ -100,7 +96,6 @@ export function validateSettings(value: unknown): Settings {
     apiKey: s.apiKey.trim(),
     model: s.model,
     catalogs: [...new Set(s.catalogs)] as CatalogId[],
-    language: s.language as Settings["language"],
     preferences: typeof s.preferences === "string" ? s.preferences.trim() : "",
   };
 }
