@@ -11,6 +11,7 @@ export interface Settings {
   apiKey: string;
   catalogs: CatalogId[];
   language: "ru" | "uk" | "en";
+  preferences?: string;
 }
 export interface Tokens {
   access_token: string;
@@ -89,12 +90,18 @@ export function validateSettings(value: unknown): Settings {
     throw new AppError("Select at least one catalog.");
   if (!["ru", "uk", "en"].includes(String(s.language)))
     throw new AppError("Select a language.");
+  if (
+    s.preferences !== undefined &&
+    (typeof s.preferences !== "string" || s.preferences.length > 1000)
+  )
+    throw new AppError("Preferences must be under 1,000 characters.");
   return {
     provider: s.provider,
     apiKey: s.apiKey.trim(),
     model: s.model,
     catalogs: [...new Set(s.catalogs)] as CatalogId[],
     language: s.language as Settings["language"],
+    preferences: typeof s.preferences === "string" ? s.preferences.trim() : "",
   };
 }
 export function manifest(settings?: Settings) {

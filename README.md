@@ -8,7 +8,7 @@ Personal movie and series recommendations based on your Trakt history, ratings a
 
 1. Connect your own Trakt account.
 2. Choose OpenAI or OpenRouter, enter your own API key and model ID.
-3. Enable Movies, Series, Everything, or any combination of these catalogs.
+3. Enable Movies, Series, Everything, or any combination of these catalogs. Add optional Preferences (up to 1,000 characters) to guide the AI selection.
 4. Generate a selection and install the personal manifest in Stremio.
 
 Trakt supplies real candidates from titles related to your favorites/recent watches, plus a discovery pool. The model ranks these candidates and explains its choices. Watched titles and low-rated titles are excluded before ranking. Model-invented IDs and duplicates are rejected. Cinemeta supplies posters and canonical IMDb metadata; the addon provides catalogs, not streams.
@@ -18,7 +18,7 @@ The Everything catalog uses a custom `Taste` catalog type and individual `movie`
 ## Costs and privacy
 
 - Each person supplies their own provider key. There is no shared/server AI key or fallback billing account.
-- Selected titles, years, ratings, watchlist entries and candidate descriptions are sent to the chosen AI provider. Trakt credentials are never sent to the AI provider.
+- Selected titles, years, ratings, watchlist entries, your optional preferences and candidate descriptions are sent to the chosen AI provider. Trakt credentials are never sent to the AI provider.
 - API keys, Trakt tokens and cached recommendations are encrypted at rest with AES-256-GCM. The server must decrypt them to make requests; self-host if you want to control the server.
 - Installation links contain random bearer tokens, not credentials. Keep them private. Browser management sessions use separate HttpOnly cookies; an installation link cannot change settings or retrieve API keys.
 - Delete your profile from the setup page to remove server-side data and invalidate its installation link. Trakt's connected-app permission can also be revoked on Trakt.

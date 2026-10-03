@@ -657,3 +657,18 @@ main {
 .field-label-row a:hover {
   text-decoration: underline;
 }
+textarea {
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  background: #111215;
+  border: 1px solid #404147;
+  border-radius: 9px;
+  padding: 12px 13px;
+  min-height: 90px;
+  resize: vertical;
+}
+.optional {
+  color: var(--muted);
+  font-weight: 400;
+}

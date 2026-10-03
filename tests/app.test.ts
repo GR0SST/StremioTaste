@@ -441,3 +441,58 @@ test("refresh API and catalog respect the same hour after settings changes", asy
   expect(calls).toBe(0);
   expect(store.byId(profile.id)!.attempted_at).toBe(attemptedAt);
 });
+
+test("preferences are optional, bounded, saved per profile and sent to the chosen AI", async () => {
+  expect(validateSettings(settings).preferences).toBe("");
+  expect(() => validateSettings({ ...settings, preferences: 7 })).toThrow();
+  expect(() =>
+    validateSettings({ ...settings, preferences: "x".repeat(1001) }),
+  ).toThrow();
+  const input = validateSettings({
+    ...settings,
+    preferences: "  No horror; thoughtful sci-fi.  ",
+  });
+  expect(input.preferences).toBe("No horror; thoughtful sci-fi.");
+  const store = setup();
+  const { profile, session } = store.create();
+  const other = store.create();
+  store.update(profile.id, { trakt: tokens });
+  const app = createApp(store, { baseUrl: base, clientId: "test" });
+  const cookie = `__Host-taste=${session}`;
+  expect(
+    (await app.fetch(req("/api/settings", "POST", input, cookie))).status,
+  ).toBe(200);
+  expect(store.secrets(store.byId(profile.id)!).settings?.preferences).toBe(
+    input.preferences,
+  );
+  expect(store.secrets(other.profile).settings).toBeUndefined();
+  const status = await (
+    await app.fetch(req("/api/status", "GET", undefined, cookie))
+  ).json();
+  expect(status.settings.preferences).toBe(input.preferences);
+  await rank(
+    input,
+    { watched: [], ratings: [], watchlist: [] },
+    [candidate],
+    async (_url, init) => {
+      const payload = JSON.parse(String(init?.body));
+      expect(JSON.parse(payload.messages[1].content).preferences).toBe(
+        input.preferences,
+      );
+      return Response.json({
+        choices: [
+          {
+            finish_reason: "stop",
+            message: {
+              content: JSON.stringify({
+                recommendations: [
+                  { key: "movie:2", reason: "Matches preferences" },
+                ],
+              }),
+            },
+          },
+        ],
+      });
+    },
+  );
+});

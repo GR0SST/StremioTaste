@@ -123,6 +123,7 @@ async function load(fill = false) {
     ).checked = true;
     populateModels(data.settings.model);
     $("language").value = data.settings.language;
+    $("preferences").value = data.settings.preferences || "";
     document.querySelectorAll('input[name="catalogs"]').forEach((input) => {
       input.checked = data.settings.catalogs.includes(input.value);
     });
@@ -208,6 +209,7 @@ $("settings").addEventListener("submit", async (event) => {
     apiKey: $("api-key").value.trim(),
     model: selectedModel(),
     language: $("language").value,
+    preferences: $("preferences").value.trim(),
     catalogs: [
       ...document.querySelectorAll('input[name="catalogs"]:checked'),
     ].map((input) => input.value),
