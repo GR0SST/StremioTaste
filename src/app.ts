@@ -40,7 +40,7 @@ export function createApp(store: Store, config: AppConfig, request?: Http) {
     bucket.count++;
     rate.set(id, bucket);
     if (bucket.count > 20 || rate.size > 10_000)
-      throw new AppError("Слишком много запросов. Подождите минуту.", 429);
+      throw new AppError("Too many requests. Retry in a minute.", 429);
   };
   const cookie = (value: string, maxAge = 365 * 86400) =>
     `${cookieName}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure ? "; Secure" : ""}`;
@@ -58,7 +58,7 @@ export function createApp(store: Store, config: AppConfig, request?: Http) {
       url.pathname !== basePath &&
       !url.pathname.startsWith(basePath + "/")
     )
-      throw new AppError("Страница не найдена.", 404);
+      throw new AppError("Page not found.", 404);
     const path = url.pathname.slice(basePath.length) || "/";
     const token = req.headers
       .get("cookie")
@@ -70,26 +70,24 @@ export function createApp(store: Store, config: AppConfig, request?: Http) {
     if (req.method === "OPTIONS") return new Response(null, { status: 204 });
     if (!["GET", "HEAD"].includes(req.method)) {
       if (req.headers.get("origin") !== origin)
-        throw new AppError("Недопустимый источник запроса.", 403);
+        throw new AppError("Invalid request origin.", 403);
       limited(profile ? profile.id : ip);
     }
     const requireProfile = () => {
-      if (!profile)
-        throw new AppError("Подключите Trakt в этом браузере.", 401);
+      if (!profile) throw new AppError("Connect Trakt in this browser.", 401);
       return profile;
     };
     const body = async (): Promise<Record<string, unknown>> => {
       if (!req.headers.get("content-type")?.startsWith("application/json"))
-        throw new AppError("Требуется JSON.", 415);
+        throw new AppError("JSON required.", 415);
       const text = await req.text();
-      if (text.length > 8192)
-        throw new AppError("Слишком большой запрос.", 413);
+      if (text.length > 8192) throw new AppError("Request too large.", 413);
       try {
         const value = JSON.parse(text);
         if (value && typeof value === "object" && !Array.isArray(value))
           return value;
       } catch {}
-      throw new AppError("Неверный JSON.");
+      throw new AppError("Invalid JSON.");
     };
     if (req.method === "GET" && path === "/health") return json({ ok: true });
     if (
@@ -133,18 +131,14 @@ export function createApp(store: Store, config: AppConfig, request?: Http) {
       });
     }
     if (req.method === "POST" && path === "/api/trakt/connect") {
-      if (!config.clientId)
-        throw new AppError(
-          "Владелец сервера ещё не настроил TRAKT_CLIENT_ID.",
-          503,
-        );
+      if (!config.clientId) throw new AppError("Trakt is unavailable.", 503);
       const input = await body();
       if (
         !profile &&
         config.inviteCode &&
         hash(String(input.inviteCode || "")) !== hash(config.inviteCode)
       )
-        throw new AppError("Неверный код приглашения.", 403);
+        throw new AppError("Invalid invite code.", 403);
       let headers: HeadersInit = {};
       if (!profile) {
         const created = store.create();
@@ -152,10 +146,7 @@ export function createApp(store: Store, config: AppConfig, request?: Http) {
         headers = { "Set-Cookie": cookie(created.session) };
       }
       if (recommendations.running(profile.id))
-        throw new AppError(
-          "Дождитесь завершения обновления рекомендаций.",
-          409,
-        );
+        throw new AppError("Дождитесь завершения обновления picks.", 409);
       if (device)
         return Response.json(await device.start(profile.id), { headers });
       const { state, challenge } = store.oauth(profile.id);
@@ -171,10 +162,10 @@ export function createApp(store: Store, config: AppConfig, request?: Http) {
       return Response.json({ url: target.toString() }, { headers });
     }
     if (req.method === "POST" && path === "/api/trakt/poll") {
-      if (!device) throw new AppError("Вход по коду не настроен.", 409);
+      if (!device) throw new AppError("Device login is unavailable.", 409);
       const p = requireProfile();
       if (recommendations.running(p.id))
-        throw new AppError("Дождитесь завершения подборки.", 409);
+        throw new AppError("Generation in progress.", 409);
       return json(await device.poll(p.id));
     }
     if (req.method === "GET" && path === "/auth/trakt/callback") {
@@ -204,12 +195,9 @@ export function createApp(store: Store, config: AppConfig, request?: Http) {
     if (req.method === "POST" && path === "/api/settings") {
       const p = requireProfile();
       if (recommendations.running(p.id))
-        throw new AppError(
-          "Дождитесь завершения обновления рекомендаций.",
-          409,
-        );
+        throw new AppError("Дождитесь завершения обновления picks.", 409);
       const previous = store.secrets(p);
-      if (!previous.trakt) throw new AppError("Сначала подключите Trakt.", 409);
+      if (!previous.trakt) throw new AppError("Connect Trakt first.", 409);
       const input = await body();
       if (
         !input.apiKey &&
@@ -228,20 +216,14 @@ export function createApp(store: Store, config: AppConfig, request?: Http) {
         !recommendations.running(p.id) &&
         p.attempted_at > Date.now() - 300_000
       )
-        throw new AppError(
-          "Обновлять можно раз в 5 минут. Готовая подборка остаётся доступной.",
-          429,
-        );
+        throw new AppError("Wait 5 minutes between refreshes.", 429);
       void recommendations.start(p.id, true);
       return json({ ok: true }, 202);
     }
     if (req.method === "DELETE" && path === "/api/profile") {
       const p = requireProfile();
       if (recommendations.running(p.id))
-        throw new AppError(
-          "Дождитесь завершения обновления рекомендаций.",
-          409,
-        );
+        throw new AppError("Дождитесь завершения обновления picks.", 409);
       store.remove(p.id);
       return Response.json(
         { ok: true },
@@ -254,7 +236,7 @@ export function createApp(store: Store, config: AppConfig, request?: Http) {
     if (req.method === "GET" && match) {
       const p = store.byAddon(match[1]!);
       const settings = p && store.secrets(p).settings;
-      if (!p || !settings) throw new AppError("Аддон не найден.", 404);
+      if (!p || !settings) throw new AppError("Addon not found.", 404);
       if (match[2] === "manifest.json") return json(manifest(settings));
       const catalog = catalogs.find(
         (c) =>
@@ -262,11 +244,11 @@ export function createApp(store: Store, config: AppConfig, request?: Http) {
           c.id === match[4] &&
           settings.catalogs.includes(c.id),
       );
-      if (!catalog) throw new AppError("Каталог не найден.", 404);
+      if (!catalog) throw new AppError("Catalog not found.", 404);
       const params = new URLSearchParams(match[5] || "");
       const rawSkip = params.get("skip") || "0";
       if (!/^\d{1,6}$/.test(rawSkip))
-        throw new AppError("Неверное смещение каталога.");
+        throw new AppError("Invalid catalog offset.");
       const skip = Number(rawSkip);
       // First preparation happens on the setup page. Expired catalogs refresh in the background.
       void recommendations.start(p.id);
@@ -278,7 +260,7 @@ export function createApp(store: Store, config: AppConfig, request?: Http) {
         staleError: 3600,
       });
     }
-    throw new AppError("Страница не найдена.", 404);
+    throw new AppError("Page not found.", 404);
   }
   return {
     recommendations,
@@ -292,7 +274,7 @@ export function createApp(store: Store, config: AppConfig, request?: Http) {
             error:
               error instanceof AppError
                 ? error.message
-                : "Внутренняя ошибка сервера.",
+                : "Internal server error.",
           },
           error instanceof AppError ? error.status : 500,
         );

@@ -620,3 +620,22 @@ footer {
   background: #101113;
   border-radius: 9px;
 }
+#connect {
+  margin-top: 20px;
+}
+.catalog-options {
+  margin-top: 20px;
+}
+main {
+  max-width: 760px;
+  padding-top: 32px;
+}
+.workspace {
+  display: block;
+}
+#installation {
+  margin-top: 24px;
+}
+#custom-model-field {
+  margin-top: 16px;
+}

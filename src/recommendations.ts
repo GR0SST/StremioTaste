@@ -18,7 +18,7 @@ export async function rank(
   request: Http = http,
 ): Promise<{ item: Candidate; reason: string }[]> {
   if (!candidates.length)
-    throw new AppError("Не удалось найти новые варианты в Trakt.", 422);
+    throw new AppError("No new titles found in Trakt.", 422);
   const base =
     settings.provider === "openai"
       ? "https://api.openai.com/v1"
@@ -32,7 +32,9 @@ export async function rank(
     body: JSON.stringify({
       model: settings.model,
       response_format: { type: "json_object" },
-      max_completion_tokens: 5000,
+      ...(settings.provider === "openrouter"
+        ? { max_tokens: 5000 }
+        : { max_completion_tokens: 5000 }),
       messages: [
         {
           role: "system",
@@ -84,7 +86,7 @@ export async function rank(
     choice.finish_reason !== "stop"
   )
     throw new AppError(
-      "Модель не завершила рекомендации. Проверьте модель или попробуйте позже.",
+      "Generation incomplete. Try another model or retry later.",
       502,
     );
   let data: { recommendations?: unknown };
@@ -92,12 +94,12 @@ export async function rank(
     data = JSON.parse(choice.message.content);
   } catch {
     throw new AppError(
-      "Модель вернула некорректный JSON. Выберите модель с поддержкой JSON mode.",
+      "Invalid model response. Use a model with JSON mode.",
       502,
     );
   }
   if (!data || !Array.isArray(data.recommendations))
-    throw new AppError("Модель вернула неверный формат рекомендаций.", 502);
+    throw new AppError("Модель вернула неверный формат picks.", 502);
   const byKey = new Map(candidates.map((c) => [key(c), c]));
   const seen = new Set<string>();
   const counts = { movie: 0, series: 0 };
@@ -112,10 +114,7 @@ export async function rank(
     result.push({ item, reason: row.reason.slice(0, 500) });
   }
   if (!result.length)
-    throw new AppError(
-      "Модель не выбрала ни одного реального фильма или сериала.",
-      502,
-    );
+    throw new AppError("No valid recommendations returned.", 502);
   return result;
 }
 
@@ -133,10 +132,10 @@ export class Recommendations {
     const job = this.jobs.get(id);
     if (job) return job;
     const profile = this.store.byId(id);
-    if (!profile) throw new AppError("Профиль не найден.", 404);
+    if (!profile) throw new AppError("Profile not found.", 404);
     const { settings, trakt } = this.store.secrets(profile);
     if (!settings || !trakt)
-      throw new AppError("Подключите Trakt и сохраните настройки.", 409);
+      throw new AppError("Connect Trakt and save your settings.", 409);
     if (!force && profile.cached_at > Date.now() - TTL)
       return Promise.resolve();
     if (profile.attempted_at > Date.now() - COOLDOWN) return Promise.resolve();
@@ -147,7 +146,7 @@ export class Recommendations {
           id,
           error instanceof AppError
             ? error.message
-            : "Не удалось обновить рекомендации. Попробуйте позже.",
+            : "Refresh failed. Try again later.",
         );
       })
       .finally(() => this.jobs.delete(id));
@@ -162,7 +161,7 @@ export class Recommendations {
       !taste.watchlist.length
     )
       throw new AppError(
-        "Trakt пока пуст: добавьте просмотренное, оценки или список к просмотру.",
+        "Your Trakt history, ratings and watchlist are empty.",
         422,
       );
     const mixed = settings.catalogs.includes("taste-mixed");
@@ -214,10 +213,7 @@ export class Recommendations {
     );
     const valid = metas.filter((m): m is Meta => m !== null);
     if (!valid.length)
-      throw new AppError(
-        "Не удалось загрузить карточки Cinemeta. Попробуйте позже.",
-        502,
-      );
+      throw new AppError("Cinemeta unavailable. Try again later.", 502);
     this.store.setCache(id, valid);
   }
 }

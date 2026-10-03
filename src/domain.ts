@@ -1,9 +1,9 @@
 export type MediaType = "movie" | "series";
 export type CatalogId = "taste-movies" | "taste-series" | "taste-mixed";
 export const catalogs = [
-  { id: "taste-movies", type: "movie", name: "Taste · Фильмы" },
-  { id: "taste-series", type: "series", name: "Taste · Сериалы" },
-  { id: "taste-mixed", type: "Taste", name: "Taste · Всё вместе" },
+  { id: "taste-movies", type: "movie", name: "Taste · Movies" },
+  { id: "taste-series", type: "series", name: "Taste · Series" },
+  { id: "taste-mixed", type: "Taste", name: "Taste · Both" },
 ] as const;
 export interface Settings {
   provider: "openai" | "openrouter";
@@ -65,30 +65,30 @@ export class AppError extends Error {
 }
 export function validateSettings(value: unknown): Settings {
   if (!value || typeof value !== "object")
-    throw new AppError("Неверные настройки.");
+    throw new AppError("Invalid settings.");
   const s = value as Record<string, unknown>;
   if (s.provider !== "openai" && s.provider !== "openrouter")
-    throw new AppError("Выберите OpenAI или OpenRouter.");
+    throw new AppError("Select OpenAI or OpenRouter.");
   if (
     typeof s.apiKey !== "string" ||
     s.apiKey.trim().length < 8 ||
     s.apiKey.length > 512 ||
     /[\r\n]/.test(s.apiKey)
   )
-    throw new AppError("Введите API-ключ выбранного провайдера.");
+    throw new AppError("Enter your API key.");
   if (
     typeof s.model !== "string" ||
     !/^[a-zA-Z0-9][a-zA-Z0-9_./:@+-]{0,199}$/.test(s.model)
   )
-    throw new AppError("Введите корректный ID модели.");
+    throw new AppError("Enter a valid model ID.");
   if (
     !Array.isArray(s.catalogs) ||
     !s.catalogs.length ||
     s.catalogs.some((id) => !catalogs.some((c) => c.id === id))
   )
-    throw new AppError("Выберите хотя бы один каталог.");
+    throw new AppError("Select at least one catalog.");
   if (!["ru", "uk", "en"].includes(String(s.language)))
-    throw new AppError("Выберите язык.");
+    throw new AppError("Select a language.");
   return {
     provider: s.provider,
     apiKey: s.apiKey.trim(),
@@ -105,7 +105,8 @@ export function manifest(settings?: Settings) {
     id: "community.stremio.taste",
     version: "0.1.0",
     name: "Taste",
-    description: "Персональные рекомендации по вашей истории и оценкам Trakt.",
+    description:
+      "Personal recommendations from your Trakt history and ratings.",
     resources: ["catalog"],
     types: [...new Set(selected.map((c) => c.type))],
     catalogs: selected.map((c) => ({

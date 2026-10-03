@@ -10,16 +10,16 @@ export async function jsonResponse<T>(
   if (!response.ok) {
     const hint =
       response.status === 401 || response.status === 403
-        ? "Проверьте доступ и переподключите аккаунт или API-ключ."
+        ? "Check your account or API key."
         : response.status === 429
-          ? "Лимит запросов. Попробуйте позже."
-          : "Попробуйте позже.";
+          ? "Rate limit reached. Try again later."
+          : "Try again later.";
     throw new AppError(`${service}: HTTP ${response.status}. ${hint}`, 502);
   }
   try {
     return (await response.json()) as T;
   } catch {
-    throw new AppError(`${service}: получен некорректный ответ.`, 502);
+    throw new AppError(`${service}: invalid response.`, 502);
   }
 }
 export interface TraktMedia {
@@ -68,13 +68,13 @@ export class Trakt {
       !Number.isFinite(tokens.expires_in) ||
       !Number.isFinite(tokens.created_at)
     )
-      throw new AppError("Trakt: неверный ответ авторизации.", 502);
+      throw new AppError("Trakt: invalid authorization response.", 502);
     return tokens;
   }
   async token(id: string): Promise<Tokens> {
     const profile = this.store.byId(id);
     const tokens = profile && this.store.secrets(profile).trakt;
-    if (!tokens) throw new AppError("Сначала подключите Trakt.", 401);
+    if (!tokens) throw new AppError("Connect Trakt first.", 401);
     if ((tokens.created_at + tokens.expires_in) * 1000 > Date.now() + 60_000)
       return tokens;
     const pending = this.refreshes.get(id);
@@ -109,16 +109,13 @@ export class Trakt {
       );
       const data = await jsonResponse<T[]>(response, "Trakt");
       if (!Array.isArray(data))
-        throw new AppError("Trakt: неверный формат списка.", 502);
+        throw new AppError("Trakt: invalid list format.", 502);
       all.push(...data);
       const count = Number(response.headers.get("X-Pagination-Page-Count"));
       if (!data.length || (count > 0 && page >= count)) return all;
       // Without pagination headers, continue until an empty page; servers may reduce page size.
     }
-    throw new AppError(
-      "История Trakt слишком большая для первой версии (более 200 страниц).",
-      422,
-    );
+    throw new AppError("Trakt history exceeds the 200-page limit.", 422);
   }
   async taste(id: string): Promise<Taste> {
     const { access_token: token } = await this.token(id);

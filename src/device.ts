@@ -29,8 +29,7 @@ export class DeviceAuth {
     )`);
   }
   async start(id: string) {
-    if (this.polls.has(id))
-      throw new AppError("Подождите окончания проверки Trakt.", 409);
+    if (this.polls.has(id)) throw new AppError("Trakt check in progress.", 409);
     const code = await jsonResponse<DeviceCode>(
       await this.request("https://api.trakt.tv/oauth/device/code", {
         method: "POST",
@@ -45,7 +44,7 @@ export class DeviceAuth {
       !Number.isFinite(code.expires_in) ||
       !Number.isFinite(code.interval)
     )
-      throw new AppError("Trakt: неверный код активации.", 502);
+      throw new AppError("Trakt: invalid activation code.", 502);
     const verification = new URL(code.verification_url);
     if (
       verification.protocol !== "https:" ||
@@ -53,7 +52,7 @@ export class DeviceAuth {
         verification.hostname,
       )
     )
-      throw new AppError("Trakt: неверный адрес активации.", 502);
+      throw new AppError("Trakt: invalid activation URL.", 502);
     const interval = Math.max(5, code.interval) * 1000;
     const expires = Date.now() + code.expires_in * 1000;
     this.store.db
@@ -78,10 +77,10 @@ export class DeviceAuth {
     const row = this.store.db
       .query<DeviceRow, [string]>("SELECT * FROM devices WHERE profile_id=?")
       .get(id);
-    if (!row) throw new AppError("Начните подключение Trakt заново.", 409);
+    if (!row) throw new AppError("Reconnect Trakt.", 409);
     if (row.expires_at < Date.now()) {
       this.remove(id);
-      throw new AppError("Код Trakt истёк. Начните подключение заново.", 410);
+      throw new AppError("Trakt code expired. Reconnect.", 410);
     }
     if (this.polls.has(id) || row.next_poll > Date.now())
       return { connected: false, interval: row.interval_ms };
@@ -116,7 +115,7 @@ export class DeviceAuth {
       if ([404, 409, 410, 418].includes(response.status)) {
         this.remove(id);
         throw new AppError(
-          "Trakt: код истёк или доступ отклонён. Подключитесь ещё раз.",
+          "Trakt: code expired or access denied. Reconnect.",
           409,
         );
       }
@@ -127,7 +126,7 @@ export class DeviceAuth {
         !Number.isFinite(tokens.expires_in) ||
         !Number.isFinite(tokens.created_at)
       )
-        throw new AppError("Trakt: неверный ответ авторизации.", 502);
+        throw new AppError("Trakt: invalid authorization response.", 502);
       this.store.update(id, { trakt: tokens });
       this.store.clearCache(id);
       this.remove(id);

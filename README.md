@@ -47,7 +47,7 @@ Set `TRAKT_CLIENT_ID` to the client ID of an application you own.
 
 ### AI models
 
-Enter the exact model ID from your provider. The model must support Chat Completions, `response_format: {type: "json_object"}`, and `max_completion_tokens`. OpenRouter IDs usually contain a provider prefix. Unsupported-model errors are shown on the setup page; the application does not silently switch models or providers. Completion output is capped at 5,000 tokens. Reasoning-heavy models can exhaust that budget and should be replaced with a suitable model.
+Choose Luna, Terra, Sol or Astra. OpenRouter also offers Sonnet 5.5, Opus 5.5 and Gemini 3.8 Flash. Choose Custom to enter any other model ID. The model must support Chat Completions, `response_format: {type: "json_object"}`, and the provider’s completion-token limit parameter (`max_completion_tokens` for OpenAI, `max_tokens` for OpenRouter). OpenRouter IDs usually contain a provider prefix. Unsupported-model errors are shown on the setup page; the application does not silently switch models or providers. Completion output is capped at 5,000 tokens. Reasoning-heavy models can exhaust that budget and should be replaced with a suitable model.
 
 ## Deploy beside BetterWatchlist
 

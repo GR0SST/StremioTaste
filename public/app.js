@@ -15,19 +15,61 @@ async function api(path, method = "GET", data) {
     ...(data !== undefined ? { body: JSON.stringify(data) } : {}),
   });
   const result = await response.json();
-  if (!response.ok)
-    throw new Error(result.error || "Не удалось выполнить запрос.");
+  if (!response.ok) throw new Error(result.error || "Request failed.");
   return result;
 }
 function provider() {
   return document.querySelector('input[name="provider"]:checked').value;
 }
+
+const openaiModels = [
+  ["Luna", "gpt-6-luna"],
+  ["Terra", "gpt-5.6-terra"],
+  ["Sol", "gpt-6.1-sol"],
+  ["Astra", "gpt-6-astra"],
+];
+const modelPresets = {
+  openai: openaiModels,
+  openrouter: [
+    ...openaiModels.map(([name, id]) => [name, "openai/" + id]),
+    ["Sonnet 5.5", "anthropic/claude-sonnet-5.5"],
+    ["Opus 5.5", "anthropic/claude-opus-5.5"],
+    ["Gemini 3.8 Flash", "google/gemini-3.8-flash"],
+  ],
+};
+const modelDrafts = {};
+let modelProvider = provider();
+function selectedModel() {
+  return $("model").value === "custom"
+    ? $("custom-model").value.trim()
+    : $("model").value;
+}
+function toggleCustomModel() {
+  const custom = $("model").value === "custom";
+  $("custom-model-field").hidden = !custom;
+  $("custom-model").disabled = !custom;
+  $("custom-model").required = custom;
+}
+function populateModels(savedModel) {
+  const choices = modelPresets[provider()];
+  $("model").replaceChildren(
+    ...choices.map(([name, id]) => new Option(name, id)),
+    new Option("Custom", "custom"),
+  );
+  const value = savedModel ?? choices[0][1];
+  const preset = choices.some(([, id]) => id === value);
+  $("model").value = preset ? value : "custom";
+  $("custom-model").value = preset ? "" : value;
+  modelProvider = provider();
+  toggleCustomModel();
+}
+populateModels();
+$("model").addEventListener("change", toggleCustomModel);
+
 function keyHint() {
   const saved = current?.configured && current.settings.provider === provider();
   $("api-key").required = !saved;
-  $("api-key").placeholder = saved
-    ? "Ключ сохранён. Оставьте пустым, чтобы использовать его"
-    : "Вставьте ключ провайдера";
+  $("api-key").placeholder = saved ? "Saved key" : "API key";
 }
 function renderPosters(metas) {
   $("posters").replaceChildren();
@@ -55,9 +97,9 @@ async function load(fill = false) {
   $("invite-label").hidden = !data.inviteRequired || data.connected;
   $("connect").disabled = !data.serverReady || data.running || busy;
   $("connect").textContent = data.connected
-    ? "Переподключить Trakt ↗"
-    : "Подключить Trakt ↗";
-  $("trakt-badge").textContent = data.connected ? "Подключён" : "Не подключён";
+    ? "Reconnect Trakt ↗"
+    : "Connect Trakt ↗";
+  $("trakt-badge").textContent = data.connected ? "Connected" : "Not connected";
   $("trakt-badge").classList.toggle("connected", data.connected);
   $("settings-fields").disabled = !data.connected || data.running || busy;
   $("installation").hidden = !data.manifestUrl;
@@ -66,7 +108,7 @@ async function load(fill = false) {
   $("results").hidden = !data.configured;
   $("refresh").disabled =
     data.running || busy || (data.retryAt && data.retryAt > Date.now());
-  $("refresh").textContent = data.running ? "Подбираем…" : "Обновить подборку";
+  $("refresh").textContent = data.running ? "Generating…" : "Refresh";
   if (data.manifestUrl) {
     $("manifest-url").value = data.manifestUrl;
     $("install").href = data.manifestUrl.replace(/^https?:/, "stremio:");
@@ -75,7 +117,7 @@ async function load(fill = false) {
     document.querySelector(
       `input[name="provider"][value="${data.settings.provider}"]`,
     ).checked = true;
-    $("model").value = data.settings.model;
+    populateModels(data.settings.model);
     $("language").value = data.settings.language;
     document.querySelectorAll('input[name="catalogs"]').forEach((input) => {
       input.checked = data.settings.catalogs.includes(input.value);
@@ -84,15 +126,11 @@ async function load(fill = false) {
   keyHint();
   if (changed || fill) renderPosters(data.metas);
   $("updated").textContent = data.cachedAt
-    ? `Обновлено ${new Date(data.cachedAt).toLocaleString()} · ${data.metas.length} рекомендаций`
-    : "Подборка ещё не создана.";
-  if (data.running)
-    status(
-      "Собираем историю Trakt и подбираем рекомендации. Это может занять несколько минут.",
-    );
+    ? `Updated ${new Date(data.cachedAt).toLocaleString("en-US")} · ${data.metas.length} picks`
+    : "No picks yet.";
+  if (data.running) status("Generating picks…");
   else if (data.error) status(data.error, true);
-  else if (polling && data.cachedAt)
-    status("Подборка готова. Можно открывать Stremio.");
+  else if (polling && data.cachedAt) status("Picks ready.");
   clearTimeout(polling);
   polling = data.running
     ? setTimeout(
@@ -119,15 +157,15 @@ $("connect").addEventListener("click", async () => {
     $("device").hidden = false;
     $("device-code").textContent = result.device.userCode;
     $("device-link").href = result.device.verificationUrl;
-    status("Подтвердите подключение на странице Trakt.");
+    status("Waiting for Trakt…");
     const poll = async () => {
       try {
         if (Date.now() > result.device.expiresAt)
-          throw new Error("Код истёк. Подключите Trakt ещё раз.");
+          throw new Error("Code expired. Reconnect Trakt.");
         const check = await api("/api/trakt/poll", "POST");
         if (check.connected) {
           $("device").hidden = true;
-          status("Trakt подключён. Теперь выберите AI и каталоги.");
+          status("Trakt connected.");
           await load(true);
           return;
         }
@@ -148,6 +186,13 @@ $("connect").addEventListener("click", async () => {
 });
 document.querySelectorAll('input[name="provider"]').forEach((input) =>
   input.addEventListener("change", () => {
+    modelDrafts[modelProvider] = selectedModel();
+    populateModels(
+      modelDrafts[provider()] ??
+        (current?.settings?.provider === provider()
+          ? current.settings.model
+          : undefined),
+    );
     $("api-key").value = "";
     keyHint();
   }),
@@ -157,20 +202,20 @@ $("settings").addEventListener("submit", async (event) => {
   const input = {
     provider: provider(),
     apiKey: $("api-key").value.trim(),
-    model: $("model").value.trim(),
+    model: selectedModel(),
     language: $("language").value,
     catalogs: [
       ...document.querySelectorAll('input[name="catalogs"]:checked'),
     ].map((input) => input.value),
   };
   if (!input.catalogs.length)
-    return status("Выберите хотя бы один каталог.", true);
+    return status("Select at least one catalog.", true);
   busy = true;
   $("settings-fields").disabled = true;
   try {
     await api("/api/settings", "POST", input);
     $("api-key").value = "";
-    status("Настройки сохранены. Запускаем подборку…");
+    status("Generating picks…");
     await api("/api/refresh", "POST");
   } catch (error) {
     status(error.message, true);
@@ -192,19 +237,14 @@ $("refresh").addEventListener("click", async () => {
 $("copy").addEventListener("click", async () => {
   try {
     await navigator.clipboard.writeText($("manifest-url").value);
-    status("Ссылка скопирована.");
+    status("URL copied.");
   } catch {
     $("manifest-url").select();
-    status("Выделили ссылку — скопируйте её вручную.");
+    status("Copy the selected URL.");
   }
 });
 $("delete-profile").addEventListener("click", async () => {
-  if (
-    !confirm(
-      "Удалить сохранённые ключи, подключение Trakt и подборки? Ссылка аддона перестанет работать.",
-    )
-  )
-    return;
+  if (!confirm("Delete your profile and deactivate its install URL?")) return;
   try {
     await api("/api/profile", "DELETE");
     location.assign(`${base}/configure`);
@@ -216,8 +256,8 @@ const auth = new URLSearchParams(location.search).get("auth");
 if (auth) {
   status(
     auth === "connected"
-      ? "Trakt подключён. Теперь выберите AI и каталоги."
-      : "Не удалось подключить Trakt. Попробуйте авторизацию ещё раз.",
+      ? "Trakt connected."
+      : "Trakt connection failed. Try again.",
     auth !== "connected",
   );
   history.replaceState(null, "", `${base}/configure`);

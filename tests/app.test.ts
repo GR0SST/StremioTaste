@@ -258,7 +258,7 @@ test("malformed or truncated AI responses fail without exposing provider secrets
           choices: [{ finish_reason: "length", message: { content: "{}" } }],
         }),
     ),
-  ).rejects.toThrow("не завершила");
+  ).rejects.toThrow("Generation incomplete");
 });
 test("device authorization enforces polling interval and persists tokens", async () => {
   const store = setup();
