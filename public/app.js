@@ -23,10 +23,10 @@ function provider() {
 }
 
 const openaiModels = [
-  ["Luna", "gpt-6-luna"],
-  ["Terra", "gpt-5.6-terra"],
-  ["Sol", "gpt-6.1-sol"],
-  ["Astra", "gpt-6-astra"],
+  ["GPT-6 Luna", "gpt-6-luna"],
+  ["GPT-5.6 Terra", "gpt-5.6-terra"],
+  ["GPT-6.1 Sol", "gpt-6.1-sol"],
+  ["GPT-6 Astra", "gpt-6-astra"],
 ];
 const modelPresets = {
   openai: openaiModels,
