@@ -234,7 +234,7 @@ test("ranking drops invented IDs and duplicates; routes keys to the selected pro
       },
     );
     expect(result).toHaveLength(1);
-    expect(result[0]?.item.imdb).toBe(candidate.imdb);
+    expect(result[0]?.item?.imdb).toBe(candidate.imdb);
   }
 });
 test("malformed or truncated AI responses fail without exposing provider secrets", async () => {
@@ -537,4 +537,101 @@ test("legacy cached explanations are omitted without losing picks or resetting c
   expect(validateSettings({ ...settings, language: "ru" })).not.toHaveProperty(
     "language",
   );
+});
+
+test("independent proposals work without candidates and respect selected types", async () => {
+  const picks = await rank(
+    { ...settings, catalogs: ["taste-movies"] },
+    { watched: [], ratings: [], watchlist: [] }, [],
+    async () => Response.json({ choices: [{ finish_reason: "stop", message: {
+      content: JSON.stringify({ recommendations: [
+        { title: "Discovery", year: 2020, type: "movie" },
+        { title: "Discovery", year: 2020, type: "movie" },
+        { title: "Show", year: 2020, type: "series" },
+        { title: "Invalid", year: "2020", type: "movie" },
+        { key: "movie:999" },
+      ] }),
+    } }] }),
+  );
+  expect(picks).toEqual([{ proposal: { title: "Discovery", year: 2020, type: "movie" } }]);
+});
+
+test("proposal verification rejects fuzzy, wrong-year, wrong-type and ambiguous matches", async () => {
+  const store = setup();
+  const { profile } = store.create();
+  store.update(profile.id, { trakt: tokens });
+  const movie = { title: "Discovery", year: 2020, ids: { trakt: 3, imdb: "tt3" } };
+  let rows: unknown[] = [];
+  const trakt = new Trakt(store, "client", base, async url => {
+    expect(new URL(url).pathname).toBe("/search/movie");
+    expect(new URL(url).searchParams.get("query")).toBe("Discovery");
+    return Response.json(rows);
+  });
+  const proposal = { title: "Discovery", year: 2020, type: "movie" as const };
+  for (const invalid of [
+    { movie: { ...movie, title: "Discovery Two" } },
+    { movie: { ...movie, year: 2021 } },
+    { show: movie },
+    { movie: { ...movie, ids: { trakt: 3, imdb: "fake" } } },
+  ]) {
+    rows = [invalid];
+    expect(await trakt.resolveProposal(profile.id, proposal)).toBeNull();
+  }
+  rows = [{ movie }, { movie: { ...movie, ids: { trakt: 4, imdb: "tt4" } } }];
+  expect(await trakt.resolveProposal(profile.id, proposal)).toBeNull();
+  rows = [{ movie }, { movie }];
+  expect((await trakt.resolveProposal(profile.id, proposal))?.imdb).toBe("tt3");
+});
+
+test("merged discoveries keep AI order despite lookup timing and exclude full history and duplicate identities", async () => {
+  const store = setup();
+  const { profile } = store.create();
+  store.update(profile.id, { settings, trakt: tokens });
+  const media = (title: string, id: number) => ({ title, year: 2020, ids: { trakt: id, imdb: `tt${id}` } });
+  const discoveries = {
+    First: media("First", 3), Last: media("Last", 4),
+    Seen: media("Seen", 99), Disliked: media("Disliked", 98),
+    Duplicate: media("Duplicate", 22),
+  };
+  // Same IMDb identity, different Trakt ID.
+  discoveries.Duplicate.ids.imdb = candidate.imdb!;
+  const completed: string[] = [];
+  const request: Http = async url => {
+    if (url.includes("/sync/")) {
+      const rows = url.includes("watched/movies")
+        ? Array.from({ length: 100 }, (_, i) => ({ movie: media(i === 99 ? "Seen" : `Seen ${i}`, i === 99 ? 99 : 1000 + i) }))
+        : url.includes("ratings/movies") ? [{ movie: discoveries.Disliked, rating: 2 }] : [];
+      return Response.json(rows, { headers: { "X-Pagination-Page-Count": "1" } });
+    }
+    if (url.includes("/popular") || url.includes("/related"))
+      return Response.json(url.includes("/movies/") ? [{
+        title: candidate.title, year: candidate.year, ids: { trakt: candidate.trakt, imdb: candidate.imdb },
+      }] : []);
+    if (url.includes("chat/completions"))
+      return Response.json({ choices: [{ finish_reason: "stop", message: {
+        content: JSON.stringify({ recommendations: [
+          { title: "First", year: 2020, type: "movie" },
+          { title: "Seen", year: 2020, type: "movie" },
+          { title: "Disliked", year: 2020, type: "movie" },
+          { key: "movie:2" },
+          { title: "Duplicate", year: 2020, type: "movie" },
+          { title: "Last", year: 2020, type: "series" },
+        ] }),
+      } }] });
+    if (url.includes("/search/")) {
+      const title = new URL(url).searchParams.get("query") as keyof typeof discoveries;
+      if (title === "First") await Bun.sleep(15);
+      return Response.json([{ [url.includes("/show?") ? "show" : "movie"]: discoveries[title] }]);
+    }
+    if (url.includes("cinemeta")) {
+      const id = url.split("/").pop()!.replace(".json", "");
+      if (id === "tt3") await Bun.sleep(15);
+      completed.push(id);
+      return Response.json({ meta: { id, name: id, type: id === "tt4" ? "series" : "movie", poster: "https://example.com/poster.jpg" } });
+    }
+    throw new Error(url);
+  };
+  await new Recommendations(store, new Trakt(store, "client", base, request), request).start(profile.id);
+  expect(completed[0]).not.toBe("tt3");
+  expect(store.cached(store.byId(profile.id)!).map(m => m.id)).toEqual(["tt3", candidate.imdb!, "tt4"]);
 });

@@ -1,4 +1,4 @@
-import { AppError, type Taste, type TasteItem, type Tokens } from "./domain";
+import { AppError, type Taste, type TasteItem, type Tokens, type MediaType } from "./domain";
 import type { Store } from "./store";
 export type Http = (url: string, init?: RequestInit) => Promise<Response>;
 export const http: Http = (url, init) =>
@@ -39,6 +39,9 @@ export interface Candidate extends TasteItem {
   overview?: string;
   genres?: string[];
 }
+export interface Proposal { title: string; year: number; type: MediaType }
+export const normalizeTitle = (title: string) =>
+  title.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
 export class Trakt {
   private refreshes = new Map<string, Promise<Tokens>>();
   constructor(
@@ -157,6 +160,30 @@ export class Trakt {
       (b.watchedAt || "").localeCompare(a.watchedAt || ""),
     );
     return result;
+  }
+  async resolveProposal(id: string, proposal: Proposal): Promise<Candidate | null> {
+    const { access_token } = await this.token(id);
+    const kind = proposal.type === "movie" ? "movie" : "show";
+    const query = new URLSearchParams({
+      query: proposal.title, years: String(proposal.year), extended: "full", limit: "30",
+    });
+    const rows = await jsonResponse<Entry[]>(
+      await this.get(`/search/${kind}?${query}`, access_token), "Trakt",
+    );
+    if (!Array.isArray(rows)) return null;
+    const matches = new Map<number, TraktMedia>();
+    for (const row of rows) {
+      const media = row[kind];
+      if (!media || typeof media.title !== "string" ||
+        normalizeTitle(media.title) !== normalizeTitle(proposal.title) ||
+        media.year !== proposal.year || !Number.isInteger(media.ids?.trakt) ||
+        media.ids.trakt <= 0 || !/^tt\d+$/.test(media.ids.imdb || "")) continue;
+      matches.set(media.ids.trakt, media);
+    }
+    if (matches.size !== 1) return null;
+    const media = [...matches.values()][0]!;
+    return { title: media.title, year: media.year, type: proposal.type,
+      trakt: media.ids.trakt, imdb: media.ids.imdb!, genres: media.genres };
   }
   async candidates(
     id: string,
