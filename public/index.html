@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="ru" data-base="__BASE_PATH__">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>Taste — рекомендации для Stremio</title>
+    <link rel="stylesheet" href="__BASE_PATH__/style.css" />
+    <script src="__BASE_PATH__/app.js" defer></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <a
+        class="brand"
+        href="__BASE_PATH__/configure"
+        aria-label="Taste, настройка"
+        ><span class="brand-mark">t.</span> taste<span class="beta"
+          >FOR STREMIO</span
+        ></a
+      ><span class="top-note">Ваш вкус. Следующая история.</span>
+    </header>
+    <main>
+      <section class="intro">
+        <p class="eyebrow"><span class="dot"></span> TRAKT → AI → STREMIO</p>
+        <h1>Меньше искать.<br /><span>Больше смотреть.</span></h1>
+        <p class="lead">
+          Фильмы и сериалы, которые хочется включить.<br />По вашим просмотрам,
+          оценкам и спискам Trakt.
+        </p>
+      </section>
+      <div class="workspace">
+        <div class="setup">
+          <section class="panel" aria-labelledby="trakt-heading">
+            <div class="section-title">
+              <span class="step">01</span>
+              <h2 id="trakt-heading">Подключите свой вкус</h2>
+              <span class="badge" id="trakt-badge">Не подключён</span>
+            </div>
+            <p class="muted">
+              Trakt поможет понять, что вам нравится и что вы уже смотрели.
+            </p>
+            <p class="notice" id="server-notice" hidden>
+              Сервер ещё настраивается. Владельцу нужно добавить TRAKT_CLIENT_ID
+              в окружение.
+            </p>
+            <label id="invite-label" hidden
+              >Код приглашения<input
+                id="invite"
+                type="password"
+                autocomplete="off"
+            /></label>
+            <button id="connect" class="button secondary" disabled>
+              Подключить Trakt <span aria-hidden="true">↗</span>
+            </button>
+            <div id="device" hidden>
+              <p class="muted">Введите этот код на странице Trakt:</p>
+              <strong id="device-code"></strong>
+              <p>
+                <a
+                  id="device-link"
+                  class="button secondary"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  >Открыть Trakt ↗</a
+                >
+              </p>
+              <p class="field-note">
+                После подтверждения подключение завершится автоматически.
+              </p>
+            </div>
+          </section>
+          <form id="settings">
+            <fieldset id="settings-fields" disabled>
+              <section class="panel" aria-labelledby="ai-heading">
+                <div class="section-title">
+                  <span class="step">02</span>
+                  <h2 id="ai-heading">Выберите AI</h2>
+                </div>
+                <p class="muted">
+                  Ваш API-ключ, ваша модель. Оплата запросов — напрямую
+                  провайдеру.
+                </p>
+                <div class="provider-options">
+                  <label class="choice"
+                    ><input
+                      type="radio"
+                      name="provider"
+                      value="openai"
+                      checked
+                    /><span>OpenAI<small>Модели OpenAI</small></span></label
+                  >
+                  <label class="choice"
+                    ><input
+                      type="radio"
+                      name="provider"
+                      value="openrouter"
+                    /><span
+                      >OpenRouter<small>Разные модели, один ключ</small></span
+                    ></label
+                  >
+                </div>
+                <label for="api-key">API-ключ</label
+                ><input
+                  id="api-key"
+                  name="apiKey"
+                  type="password"
+                  autocomplete="new-password"
+                  placeholder="Вставьте ключ провайдера"
+                  maxlength="512"
+                />
+                <p class="field-note" id="key-note">
+                  Ключ хранится на сервере в зашифрованном виде.
+                </p>
+                <div class="field-row">
+                  <div>
+                    <label for="model">ID модели</label
+                    ><input
+                      id="model"
+                      name="model"
+                      required
+                      placeholder="ID модели из вашего аккаунта"
+                      maxlength="200"
+                      spellcheck="false"
+                    />
+                    <p class="field-note">
+                      Нужна поддержка Chat Completions и JSON mode.
+                    </p>
+                  </div>
+                  <div>
+                    <label for="language">Язык пояснений</label
+                    ><select id="language" name="language">
+                      <option value="ru">Русский</option>
+                      <option value="uk">Українська</option>
+                      <option value="en">English</option>
+                    </select>
+                  </div>
+                </div>
+              </section>
+              <section class="panel" aria-labelledby="catalog-heading">
+                <div class="section-title">
+                  <span class="step">03</span>
+                  <h2 id="catalog-heading">Что будем смотреть?</h2>
+                </div>
+                <p class="muted">
+                  Включите нужные каталоги. Каждый появится отдельной подборкой.
+                </p>
+                <div class="catalog-options">
+                  <label class="choice"
+                    ><input
+                      type="checkbox"
+                      name="catalogs"
+                      value="taste-movies"
+                      checked
+                    /><span
+                      >Фильмы<small>История на один вечер</small></span
+                    ></label
+                  >
+                  <label class="choice"
+                    ><input
+                      type="checkbox"
+                      name="catalogs"
+                      value="taste-series"
+                      checked
+                    /><span>Сериалы<small>Ещё одну серию</small></span></label
+                  >
+                  <label class="choice"
+                    ><input
+                      type="checkbox"
+                      name="catalogs"
+                      value="taste-mixed"
+                      checked
+                    /><span
+                      >Всё вместе<small>Пусть решает настроение</small></span
+                    ></label
+                  >
+                </div>
+                <p class="field-note">
+                  Смешанный каталог экспериментальный: отображение зависит от
+                  клиента Stremio.
+                </p>
+              </section>
+              <div class="save-area">
+                <p class="privacy">
+                  Для подборки выбранной AI-модели отправляются названия из
+                  истории, оценки и список к просмотру. Первое создание подборки
+                  использует ваш API-баланс.
+                </p>
+                <button type="submit" class="button primary" id="save">
+                  Сохранить и создать подборку <span aria-hidden="true">→</span>
+                </button>
+              </div>
+            </fieldset>
+          </form>
+        </div>
+        <aside class="summary">
+          <div class="summary-card">
+            <p class="eyebrow">ВАШ СЛЕДУЮЩИЙ ВЕЧЕР</p>
+            <div class="abstract-art" aria-hidden="true">
+              <div class="ticket ticket-back">SERIES<span>01—20</span></div>
+              <div class="ticket ticket-front">
+                <span class="ticket-logo">t.</span>MOVIES + MORE<span
+                  >CURATED FOR YOU</span
+                >
+              </div>
+            </div>
+            <h2>Хорошие истории.<br />Лично для вас.</h2>
+            <ul class="features">
+              <li>Учитывает оценки и просмотры</li>
+              <li>Исключает уже просмотренное</li>
+              <li>Обновляется раз в 6 часов при открытии</li>
+            </ul>
+            <div class="divider"></div>
+            <p class="field-note">
+              Подборка сохраняется между открытиями Stremio — без нового
+              AI-запроса каждый раз.
+            </p>
+            <div id="installation" hidden>
+              <label for="manifest-url">Персональная ссылка</label
+              ><input id="manifest-url" readonly />
+              <p class="field-note">
+                Не публикуйте ссылку: она даёт доступ к вашим подборкам.
+              </p>
+              <a id="install" class="button primary" href="#"
+                >Установить в Stremio ↗</a
+              ><button id="copy" class="button secondary">
+                Скопировать ссылку
+              </button>
+            </div>
+          </div>
+          <p class="aside-note">
+            Открытый код · Можно разместить у себя<br />Trakt + OpenAI /
+            OpenRouter
+          </p>
+        </aside>
+      </div>
+      <section class="results" id="results" hidden>
+        <div class="results-heading">
+          <div>
+            <p class="eyebrow">ПОДОБРАНО ДЛЯ ВАС</p>
+            <h2>Есть что посмотреть</h2>
+            <p class="muted" id="updated"></p>
+          </div>
+          <button class="button secondary" id="refresh">
+            Обновить подборку
+          </button>
+        </div>
+        <div class="poster-grid" id="posters"></div>
+      </section>
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+      <footer>
+        <span>Taste — независимый аддон для Stremio.</span
+        ><button class="text-button" id="delete-profile" hidden>
+          Удалить мой профиль
+        </button>
+      </footer>
+    </main>
+  </body>
+</html>
