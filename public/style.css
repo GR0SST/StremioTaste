@@ -639,3 +639,21 @@ main {
 #custom-model-field {
   margin-top: 16px;
 }
+.field-label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.field-label-row label {
+  margin-bottom: 0;
+}
+.field-label-row a {
+  color: var(--accent);
+  font-size: 12px;
+  text-decoration: none;
+}
+.field-label-row a:hover {
+  text-decoration: underline;
+}

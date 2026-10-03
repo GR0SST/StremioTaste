@@ -67,6 +67,10 @@ populateModels();
 $("model").addEventListener("change", toggleCustomModel);
 
 function keyHint() {
+  $("get-api-key").href =
+    provider() === "openrouter"
+      ? "https://openrouter.ai/settings/keys"
+      : "https://platform.openai.com/api-keys";
   const saved = current?.configured && current.settings.provider === provider();
   $("api-key").required = !saved;
   $("api-key").placeholder = saved ? "Saved key" : "API key";
