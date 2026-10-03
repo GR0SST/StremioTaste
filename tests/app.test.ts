@@ -357,3 +357,87 @@ test("end-to-end generation excludes watched items, shares concurrent work and p
   expect(store.cached(store.byId(profile.id)!)).toHaveLength(1);
   expect(store.byId(profile.id)!.error).toContain("503");
 });
+
+test("hourly limit blocks forced and automatic retries, including after failure and engine restart", async () => {
+  const store = setup();
+  const { profile } = store.create();
+  store.update(profile.id, { settings, trakt: tokens });
+  let calls = 0;
+  const request: Http = async () => {
+    calls++;
+    return new Response(null, { status: 503 });
+  };
+  const engine = new Recommendations(
+    store,
+    new Trakt(store, "client", base, request),
+    request,
+  );
+  store.db
+    .query("UPDATE profiles SET attempted_at=? WHERE id=?")
+    .run(Date.now() - 59 * 60_000, profile.id);
+  await engine.start(profile.id);
+  await engine.start(profile.id, true);
+  expect(calls).toBe(0);
+  store.db
+    .query("UPDATE profiles SET attempted_at=? WHERE id=?")
+    .run(Date.now() - 61 * 60_000, profile.id);
+  await engine.start(profile.id, true);
+  expect(calls).toBe(1);
+  expect(store.byId(profile.id)!.error).toContain("503");
+  const restarted = new Recommendations(
+    store,
+    new Trakt(store, "client", base, request),
+    request,
+  );
+  await restarted.start(profile.id, true);
+  expect(calls).toBe(1);
+});
+
+test("refresh API and catalog respect the same hour after settings changes", async () => {
+  const store = setup();
+  const { profile, session } = store.create();
+  store.update(profile.id, { settings, trakt: tokens });
+  const attemptedAt = Date.now() - 30 * 60_000;
+  store.db
+    .query("UPDATE profiles SET attempted_at=? WHERE id=?")
+    .run(attemptedAt, profile.id);
+  let calls = 0;
+  const app = createApp(
+    store,
+    { baseUrl: base, clientId: "test" },
+    async () => {
+      calls++;
+      return new Response(null, { status: 503 });
+    },
+  );
+  const cookie = `__Host-taste=${session}`;
+  const status = await (
+    await app.fetch(req("/api/status", "GET", undefined, cookie))
+  ).json();
+  expect(status.retryAt).toBe(attemptedAt + 60 * 60_000);
+  expect(
+    (await app.fetch(req("/api/refresh", "POST", undefined, cookie))).status,
+  ).toBe(429);
+  expect(
+    (
+      await app.fetch(
+        req(
+          "/api/settings",
+          "POST",
+          { ...settings, model: "changed-model" },
+          cookie,
+        ),
+      )
+    ).status,
+  ).toBe(200);
+  expect(
+    (await app.fetch(req("/api/refresh", "POST", undefined, cookie))).status,
+  ).toBe(429);
+  const addon = store.secrets(store.byId(profile.id)!).addon;
+  const response = await app.fetch(
+    req(`/a/${addon}/catalog/movie/taste-movies.json`),
+  );
+  expect(response.status).toBe(200);
+  expect(calls).toBe(0);
+  expect(store.byId(profile.id)!.attempted_at).toBe(attemptedAt);
+});

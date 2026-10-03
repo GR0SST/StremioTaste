@@ -10,7 +10,7 @@ import {
 import type { Store } from "./store";
 
 const TTL = 6 * 60 * 60 * 1000;
-const COOLDOWN = 5 * 60 * 1000;
+export const GENERATION_COOLDOWN_MS = 60 * 60 * 1000;
 export async function rank(
   settings: Settings,
   taste: Taste,
@@ -99,7 +99,7 @@ export async function rank(
     );
   }
   if (!data || !Array.isArray(data.recommendations))
-    throw new AppError("Модель вернула неверный формат picks.", 502);
+    throw new AppError("Invalid recommendation format.", 502);
   const byKey = new Map(candidates.map((c) => [key(c), c]));
   const seen = new Set<string>();
   const counts = { movie: 0, series: 0 };
@@ -138,7 +138,8 @@ export class Recommendations {
       throw new AppError("Connect Trakt and save your settings.", 409);
     if (!force && profile.cached_at > Date.now() - TTL)
       return Promise.resolve();
-    if (profile.attempted_at > Date.now() - COOLDOWN) return Promise.resolve();
+    if (profile.attempted_at > Date.now() - GENERATION_COOLDOWN_MS)
+      return Promise.resolve();
     this.store.attempt(id);
     const work = this.generate(id, settings)
       .catch((error) => {

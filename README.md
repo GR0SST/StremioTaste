@@ -71,7 +71,7 @@ Use one application process/replica: in-process generation and refresh-token loc
 
 ## Caching and limits
 
-- One generation per profile at a time; at least 5 minutes between attempts.
+- One generation per profile at a time; at least one hour between attempts, including failed attempts and manual refreshes. The limit persists across restarts and settings changes.
 - Up to 20 films and 20 series, depending on available candidates and metadata.
 - Six-hour cache; an expired catalog triggers background refresh on access. There is no scheduler when nobody uses it.
 - The setup page shows generation progress and a preview. First catalog requests may return an empty list while initial generation runs.

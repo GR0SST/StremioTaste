@@ -8,7 +8,7 @@ import {
 } from "./domain";
 import { Store, hash } from "./store";
 import { Trakt, type Http } from "./upstream";
-import { Recommendations } from "./recommendations";
+import { Recommendations, GENERATION_COOLDOWN_MS } from "./recommendations";
 
 export interface AppConfig {
   baseUrl: string;
@@ -126,7 +126,9 @@ export function createApp(store: Store, config: AppConfig, request?: Http) {
         running: profile ? recommendations.running(profile.id) : false,
         cachedAt: profile?.cached_at || null,
         error: profile?.error || null,
-        retryAt: profile?.attempted_at ? profile.attempted_at + 300_000 : null,
+        retryAt: profile?.attempted_at
+          ? profile.attempted_at + GENERATION_COOLDOWN_MS
+          : null,
         metas: profile ? store.cached(profile) : [],
       });
     }
@@ -146,7 +148,7 @@ export function createApp(store: Store, config: AppConfig, request?: Http) {
         headers = { "Set-Cookie": cookie(created.session) };
       }
       if (recommendations.running(profile.id))
-        throw new AppError("Дождитесь завершения обновления picks.", 409);
+        throw new AppError("Generation in progress.", 409);
       if (device)
         return Response.json(await device.start(profile.id), { headers });
       const { state, challenge } = store.oauth(profile.id);
@@ -195,7 +197,7 @@ export function createApp(store: Store, config: AppConfig, request?: Http) {
     if (req.method === "POST" && path === "/api/settings") {
       const p = requireProfile();
       if (recommendations.running(p.id))
-        throw new AppError("Дождитесь завершения обновления picks.", 409);
+        throw new AppError("Generation in progress.", 409);
       const previous = store.secrets(p);
       if (!previous.trakt) throw new AppError("Connect Trakt first.", 409);
       const input = await body();
@@ -214,16 +216,16 @@ export function createApp(store: Store, config: AppConfig, request?: Http) {
       const p = requireProfile();
       if (
         !recommendations.running(p.id) &&
-        p.attempted_at > Date.now() - 300_000
+        p.attempted_at > Date.now() - GENERATION_COOLDOWN_MS
       )
-        throw new AppError("Wait 5 minutes between refreshes.", 429);
+        throw new AppError("Wait one hour between refreshes.", 429);
       void recommendations.start(p.id, true);
       return json({ ok: true }, 202);
     }
     if (req.method === "DELETE" && path === "/api/profile") {
       const p = requireProfile();
       if (recommendations.running(p.id))
-        throw new AppError("Дождитесь завершения обновления picks.", 409);
+        throw new AppError("Generation in progress.", 409);
       store.remove(p.id);
       return Response.json(
         { ok: true },
